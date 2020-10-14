@@ -40,6 +40,7 @@
 #include "window-autoclear.h"
 
 #define WINDOW_AUTOCLEAR_CM_CLASS "window-autoclear"
+#define MAXIMUM_SACK_SIZE 1000000
 
 static QofLogModule log_module = GNC_MOD_GUI;
 
@@ -134,8 +135,13 @@ gnc_autoclear_window_ok_cb (GtkWidget *widget,
     GList *node, *nc_list = 0, *toclear_list = 0;
     gnc_numeric toclear_value;
     GHashTable *sack;
+    gint sack_size = 0;
+    gchar *errmsg = NULL;
 
-    gtk_label_set_text(data->status_label, _("Searching for splits to clear ..."));
+    g_return_if_fail (widget && data);
+
+    sack = g_hash_table_new_full (ght_gnc_numeric_hash, ght_gnc_numeric_equal,
+                                  g_free, NULL);
 
     /* Value we have to reach */
     toclear_value = gnc_amount_edit_get_amount(data->end_value);
@@ -147,16 +153,18 @@ gnc_autoclear_window_ok_cb (GtkWidget *widget,
     for (node = xaccAccountGetSplitList(data->account); node; node = node->next)
     {
         Split *split = (Split *)node->data;
-        char recn;
-        gnc_numeric value;
 
-        recn = xaccSplitGetReconcile (split);
-        value = xaccSplitGetAmount (split);
-
-        if (recn == NREC)
+        if (xaccSplitGetReconcile (split) == NREC)
             nc_list = g_list_prepend (nc_list, split);
         else
-            toclear_value = gnc_numeric_sub_fixed(toclear_value, value);
+            toclear_value = gnc_numeric_sub_fixed
+                (toclear_value, xaccSplitGetAmount (split));
+    }
+
+    if (gnc_numeric_zero_p (toclear_value))
+    {
+        errmsg = _("Account is already at Auto-Clear Balance.");
+        goto skip_knapsack;
     }
 
     /* Pretty print information */
@@ -175,7 +183,6 @@ gnc_autoclear_window_ok_cb (GtkWidget *widget,
      *  - value = last split we used to clear this amount (not managed by GHashTable)
      */
     PINFO("Knapsacking ...\n");
-    sack = g_hash_table_new_full (ght_gnc_numeric_hash, ght_gnc_numeric_equal, g_free, NULL);
     for (node = nc_list; node; node = node->next)
     {
         Split *split = (Split *)node->data;
@@ -198,18 +205,29 @@ gnc_autoclear_window_ok_cb (GtkWidget *widget,
         for (GList *s_node = s_data->reachable_list; s_node; s_node = s_node->next)
         {
             gnc_numeric *reachable_value = s_node->data;
-            Split *toinsert_split = split;
 
             PINFO("    Reachable value: %s ", gnc_numeric_to_string(*reachable_value));
 
             /* Check if it already exists */
             if (g_hash_table_lookup_extended(sack, reachable_value, NULL, NULL))
             {
-                /* If yes, we are in trouble, we reached an amount using two solutions */
-                toinsert_split = NULL;
+                /* If yes, we are in trouble, we reached an amount
+                   using two solutions */
+                g_hash_table_insert (sack, reachable_value, NULL);
                 PINFO("dup");
             }
-            g_hash_table_insert (sack, reachable_value, toinsert_split);
+            else
+            {
+                g_hash_table_insert (sack, reachable_value, split);
+                sack_size++;
+
+                if (sack_size > MAXIMUM_SACK_SIZE)
+                {
+                    errmsg = _("Too many uncleared splits");
+                    goto skip_knapsack;
+                }
+            }
+
             PINFO("\n");
         }
         g_list_free(s_data->reachable_list);
@@ -219,66 +237,60 @@ gnc_autoclear_window_ok_cb (GtkWidget *widget,
     PINFO("Rebuilding solution ...\n");
     while (!gnc_numeric_zero_p(toclear_value))
     {
-        gpointer psplit = NULL;
+        Split *split = NULL;
 
         PINFO("  Left to clear: %s\n", gnc_numeric_to_string(toclear_value));
-        if (g_hash_table_lookup_extended(sack, &toclear_value, NULL, &psplit))
-        {
-            if (psplit != NULL)
-            {
-                /* Cast the gpointer to the kind of pointer we actually need */
-                Split *split = (Split *)psplit;
-                toclear_list = g_list_prepend(toclear_list, split);
-                toclear_value = gnc_numeric_sub_fixed(toclear_value,
-                                                      xaccSplitGetAmount(split));
-                PINFO("    Cleared: %s -> %s\n",
-                      gnc_numeric_to_string(xaccSplitGetAmount(split)),
-                      gnc_numeric_to_string(toclear_value));
-            }
-            else
-            {
-                /* We couldn't reconstruct the solution */
-                PINFO("    Solution not unique.\n");
-                gtk_label_set_text(data->status_label, _("Cannot uniquely clear splits. Found multiple possibilities."));
-                gtk_editable_select_region (GTK_EDITABLE (data->end_value), 0, -1);
-                return;
-            }
-        }
-        else
+        if (!g_hash_table_lookup_extended (sack, &toclear_value,
+                                           NULL, (gpointer) &split))
         {
             PINFO("    No solution found.\n");
-            gtk_label_set_text(data->status_label, _("The selected amount cannot be cleared."));
-            gtk_editable_select_region (GTK_EDITABLE (data->end_value), 0, -1);
-            return;
+            errmsg = _("The selected amount cannot be cleared.");
+            goto skip_knapsack;
         }
+
+        if (!split)
+        {
+            PINFO("    Solution not unique.\n");
+            errmsg = _("Cannot uniquely clear splits. Found multiple possibilities.");
+            goto skip_knapsack;
+        }
+
+        toclear_list = g_list_prepend (toclear_list, split);
+        toclear_value = gnc_numeric_sub_fixed (toclear_value,
+                                               xaccSplitGetAmount(split));
+        PINFO("    Cleared: %s -> %s\n",
+              gnc_numeric_to_string(xaccSplitGetAmount(split)),
+              gnc_numeric_to_string(toclear_value));
     }
-    g_hash_table_destroy (sack);
 
     /* Show solution */
     PINFO("Clearing splits:\n");
+    xaccAccountBeginEdit (data->account);
     for (node = toclear_list; node; node = node->next)
     {
         Split *split = node->data;
-        char recn;
-        gnc_numeric value;
-
-        recn = xaccSplitGetReconcile (split);
-        value = xaccSplitGetAmount (split);
-
-        PINFO("  %c %s\n", recn, gnc_numeric_to_string(value));
-
+        PINFO("  %c %s\n", xaccSplitGetReconcile (split),
+              gnc_numeric_to_string(xaccSplitGetAmount (split)));
         xaccSplitSetReconcile (split, CREC);
     }
-    if (toclear_list == 0)
-        PINFO("  None\n");
+    xaccAccountCommitEdit (data->account);
 
-    /* Free lists */
+ skip_knapsack:
+    if (errmsg)
+    {
+        gtk_label_set_text (data->status_label, errmsg);
+        gtk_editable_select_region (GTK_EDITABLE (data->end_value), 0, -1);
+    }
+    else
+    {
+        /* Close window */
+        gtk_widget_destroy (data->window);
+        g_free (data);
+    }
+
+    g_hash_table_destroy (sack);
     g_list_free(nc_list);
     g_list_free(toclear_list);
-
-    /* Close window */
-    gtk_widget_destroy(data->window);
-    g_free(data);
 }
 
 void
