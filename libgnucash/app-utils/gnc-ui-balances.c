@@ -368,10 +368,10 @@ typedef struct _sack_foreach_data_t
 
 static void sack_foreach_func(gpointer key, gpointer value, gpointer user_data)
 {
-    sack_foreach_data_t data = (sack_foreach_data_t)user_data;
-    gnc_numeric thisvalue = *(gnc_numeric *)key;
+    sack_foreach_data_t data = (sack_foreach_data_t) user_data;
+    gnc_numeric thisvalue = *(gnc_numeric *) key;
+    gnc_numeric reachable_value = gnc_numeric_add_fixed (thisvalue, data->split_value);
 
-    gnc_numeric reachable_value = gnc_numeric_add_fixed(thisvalue, data->split_value);
     data->reachable_list = g_list_prepend
         (data->reachable_list, g_memdup (&reachable_value, sizeof (gnc_numeric)));
 }
@@ -391,7 +391,7 @@ gnc_account_get_autoclear_splits (Account *account, gnc_numeric toclear_value,
                                   g_free, NULL);
 
     /* Extract which splits are not cleared and compute the amount we have to clear */
-    for (GList *node = xaccAccountGetSplitList(account); node; node = node->next)
+    for (GList *node = xaccAccountGetSplitList (account); node; node = node->next)
     {
         Split *split = (Split *)node->data;
 
@@ -416,7 +416,7 @@ gnc_account_get_autoclear_splits (Account *account, gnc_numeric toclear_value,
     for (GList *node = nc_list; node; node = node->next)
     {
         Split *split = (Split *)node->data;
-        gnc_numeric split_value = xaccSplitGetAmount(split);
+        gnc_numeric split_value = xaccSplitGetAmount (split);
 
         struct _sack_foreach_data_t s_data[1];
         s_data->split_value = split_value;
@@ -435,7 +435,7 @@ gnc_account_get_autoclear_splits (Account *account, gnc_numeric toclear_value,
             gnc_numeric *reachable_value = s_node->data;
 
             /* Check if it already exists */
-            if (g_hash_table_lookup_extended(sack, reachable_value, NULL, NULL))
+            if (g_hash_table_lookup_extended (sack, reachable_value, NULL, NULL))
             {
                 /* If yes, we are in trouble, we reached an amount
                    using two solutions */
@@ -453,11 +453,11 @@ gnc_account_get_autoclear_splits (Account *account, gnc_numeric toclear_value,
                 }
             }
         }
-        g_list_free(s_data->reachable_list);
+        g_list_free (s_data->reachable_list);
     }
 
     /* Check solution */
-    while (!gnc_numeric_zero_p(toclear_value))
+    while (!gnc_numeric_zero_p (toclear_value))
     {
         Split *split = NULL;
 
@@ -476,12 +476,12 @@ gnc_account_get_autoclear_splits (Account *account, gnc_numeric toclear_value,
 
         toclear_list = g_list_prepend (toclear_list, split);
         toclear_value = gnc_numeric_sub_fixed (toclear_value,
-                                               xaccSplitGetAmount(split));
+                                               xaccSplitGetAmount (split));
     }
- skip_knapsack:
 
+ skip_knapsack:
     g_hash_table_destroy (sack);
-    g_list_free(nc_list);
+    g_list_free (nc_list);
 
     if (msg)
     {

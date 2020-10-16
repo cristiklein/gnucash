@@ -96,6 +96,32 @@ gnc_autoclear_make_window_name(Account *account)
     return title;
 }
 
+static void
+show_cleared_splits (GList *splits)
+{
+    GNCLedgerDisplay *ledger;
+    GncPluginPage *page;
+    Query *book_query, *guid_query;
+
+    book_query = qof_query_create_for (GNC_ID_SPLIT);
+    guid_query = qof_query_create_for (GNC_ID_SPLIT);
+    qof_query_set_book (book_query, gnc_get_current_book ());
+
+    for (GList *iter = splits; iter; iter = iter->next)
+    {
+        GncGUID guid = xaccSplitReturnGUID (iter->data);
+        xaccQueryAddGUIDMatch (guid_query, &guid, GNC_ID_SPLIT, QOF_QUERY_OR);
+    }
+    book_query = qof_query_merge (book_query, guid_query, QOF_QUERY_AND);
+    ledger = gnc_ledger_display_query (book_query, SEARCH_LEDGER, REG_STYLE_JOURNAL);
+    gnc_ledger_display_refresh (ledger);
+    page = gnc_plugin_page_register_new_ledger (ledger);
+    g_object_set (G_OBJECT(page), "page-name", _("Cleared Transactions"), NULL);
+    gnc_main_window_open_page (NULL, page);
+    qof_query_destroy (book_query);
+    qof_query_destroy (guid_query);
+}
+
 void
 gnc_autoclear_window_ok_cb (GtkWidget *widget,
                             AutoClearWindow *data)
@@ -129,12 +155,16 @@ gnc_autoclear_window_ok_cb (GtkWidget *widget,
         xaccAccountBeginEdit (data->account);
         for (GList *node = toclear_list; node; node = node->next)
             xaccSplitSetReconcile (node->data, CREC);
+        show_cleared_splits (toclear_list);
         g_list_free (toclear_list);
         xaccAccountCommitEdit (data->account);
 
         /* Close window */
         gtk_widget_destroy (data->window);
         g_free (data);
+
+        gnc_info_dialog (GTK_WINDOW (gtk_widget_get_window (widget)),
+                         "Showing cleared transactions");
     }
 }
 
