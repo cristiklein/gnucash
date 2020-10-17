@@ -11,7 +11,7 @@ set(APP_UTILS_TEST_INCLUDE_DIRS
 
 set(APP_UTILS_TEST_LIBS gnc-app-utils gnc-test-engine test-core ${GIO_LDFLAGS} ${GUILE_LDFLAGS})
 
-set(test_app_utils_SOURCES test-app-utils.c test-option-util.cpp test-gnc-ui-util.c)
+set(test_app_utils_SOURCES test-app-utils.c test-autoclear.c test-option-util.cpp test-gnc-ui-util.c)
 
 macro(add_app_utils_test _TARGET _SOURCE_FILES)
   gnc_add_test(${_TARGET} "${_SOURCE_FILES}" APP_UTILS_TEST_INCLUDE_DIRS APP_UTILS_TEST_LIBS)
