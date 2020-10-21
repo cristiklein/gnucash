@@ -71,14 +71,6 @@ endif()
 # Doesn't work yet:
 gnc_add_test_with_guile(test-app-utils "${test_app_utils_SOURCES}" APP_UTILS_TEST_INCLUDE_DIRS APP_UTILS_TEST_LIBS)
 
-# Copy test-files to build directory.
-# Feels less intrusive than changing the working directory for gnc_add_test.
-add_custom_command(TARGET test-app-utils POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/test-files
-    ${CMAKE_CURRENT_BINARY_DIR}/test-files
-)
-
 set_dist_list(test_app_utils_DIST
   CMakeLists.txt
   
