@@ -25,7 +25,6 @@
 #include <qof.h>
 #include <libguile.h>
 
-extern void test_suite_autoclear (void);
 extern void test_suite_option_util (void);
 extern void test_suite_gnc_ui_util (void);
 
@@ -35,7 +34,6 @@ guile_main (void *closure, int argc, char **argv)
     int retval;
     scm_c_use_module("gnucash app-utils");
 
-    test_suite_autoclear ();
     test_suite_option_util ();
     test_suite_gnc_ui_util ();
     retval = g_test_run ();

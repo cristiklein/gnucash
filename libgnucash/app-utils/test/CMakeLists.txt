@@ -11,7 +11,7 @@ set(APP_UTILS_TEST_INCLUDE_DIRS
 
 set(APP_UTILS_TEST_LIBS gnc-app-utils gnc-test-engine test-core ${GIO_LDFLAGS} ${GUILE_LDFLAGS})
 
-set(test_app_utils_SOURCES test-app-utils.c test-autoclear.c test-option-util.cpp test-gnc-ui-util.c)
+set(test_app_utils_SOURCES test-app-utils.c test-option-util.cpp test-gnc-ui-util.c)
 
 macro(add_app_utils_test _TARGET _SOURCE_FILES)
   gnc_add_test(${_TARGET} "${_SOURCE_FILES}" APP_UTILS_TEST_INCLUDE_DIRS APP_UTILS_TEST_LIBS)
@@ -84,4 +84,22 @@ set_dist_list(test_app_utils_DIST
   test-options.scm
   ${test_app_utils_scheme_SOURCES}
   ${test_app_utils_SOURCES}
+)
+
+
+set(test_autoclear_SOURCES
+    test-autoclear.cpp
+)
+set(test_autoclear_INCLUDE_DIRS
+    ${APP_UTILS_TEST_INCLUDE_DIRS}
+    ${GTEST_INCLUDE_DIR}
+)
+set(test_autoclear_LIBS
+  gtest
+)
+
+
+gnc_add_test(test-autoclear "${test_autoclear_SOURCES}"
+    test_autoclear_INCLUDE_DIRS
+    test_autoclear_LIBS
 )

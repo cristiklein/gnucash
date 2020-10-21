@@ -21,62 +21,7 @@
  * 51 Franklin Street, Fifth Floor    Fax:    +1-617-542-2652       *
  * Boston, MA  02110-1301,  USA       gnu@gnu.org                   *
  ********************************************************************/
-#include <config.h>
-#include <glib.h>
-#include <stdlib.h>
-#include <unittest-support.h>
-#include <qofbookslots.h>
-#include "test-engine-stuff.h"
-#include "../option-util.h"
+#include "config.h"
+#include "../gnc-ui-balances.h"
 
-#include "test-stuff.h"
-
-#define GNC_LIB_NAME "gncmod-backend-xml"
-#define GNC_LIB_REL_PATH "xml"
-
-static const gchar *suitename = "/app-utils/autoclear";
-
-void test_suite_autoclear (void);
-
-const char *TEST_FILENAME = "test-files/autoclear.gnucash";
-
-typedef struct
-{
-    QofSession *session;
-} Fixture;
-
-static void
-setup (Fixture *fixture, gconstpointer pData)
-{
-    fixture->session = qof_session_new (NULL);
-    system("pwd; ls -l; ls -l test-files");
-
-    qof_session_begin (fixture->session, TEST_FILENAME, SESSION_NORMAL_OPEN);
-
-    qof_session_load (fixture->session, NULL);
-}
-
-static void
-teardown (Fixture *fixture, gconstpointer pData)
-{
-    qof_session_end (fixture->session);
-    fixture->session = NULL;
-
-    test_clear_error_list();
-}
-
-static void
-test_autoclear (Fixture *fixture, gconstpointer pData)
-{
-    g_assert (TRUE);
-}
-
-void
-test_suite_autoclear (void)
-{
-    do_test (qof_load_backend_library (GNC_LIB_REL_PATH, GNC_LIB_NAME),
-             " loading gnc-backend-xml GModule failed");
-    fprintf(stderr, "Blah\n");
-
-    GNC_TEST_ADD (suitename, "Auto-clear all transactions", Fixture, NULL, setup, test_autoclear, teardown);
-}
+#include "gtest/gtest.h"
